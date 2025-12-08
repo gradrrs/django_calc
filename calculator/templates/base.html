@@ -111,14 +111,16 @@
 </head>
 <body>
     
-    <nav>
-        <a href="{% url 'calculator' %}" {% if request.path == '/calculator/' or request.path == '/calculator/calculate/' %}class="active"{% endif %}>
-            🧮 Калькулятор
-        </a>
-    <a href="{% url 'history' %}" {% if request.path == '/calculator/history/' %}class="active"{% endif %}>
-            📋 История операций
-        </a>
-    </nav>
+<nav>
+    <a href="{% url 'calculator' %}" 
+       {% if request.path == '/calculator/' or request.path == '/calculator/calculate/' %}class="active"{% endif %}>
+        🧮 Калькулятор
+    </a>
+    <a href="{% url 'history' %}" 
+       {% if request.path == '/calculator/history/' or request.path == '/calculator/history/clear/' %}class="active"{% endif %}>
+        📋 История операций
+    </a>
+</nav>
     
     <div class="container">
         {% if messages %}

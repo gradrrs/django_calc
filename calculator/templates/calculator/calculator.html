@@ -5,55 +5,60 @@
 {% block content %}
 <div class="calculator-container">
     <h2>🧮 Калькулятор</h2>
-    <p class="description">Введите два числа и выберите операцию для вычисления</p>
+    <p class="description">Введите числа и выберите операцию для вычисления.</p>
     
-    <form method="post" action="{% url 'calculate' %}" class="calculator-form">
+    <form method="post" action="{% url 'calculate' %}" class="calculator-form" id="calc-form">
         {% csrf_token %}
         
         <div class="form-grid">
             <div class="form-group">
                 <label for="num1">Первое число:</label>
-                <input type="number" 
+                <input type="text" 
                        id="num1" 
                        name="num1" 
-                       step="any" 
                        value="{{ num1 }}" 
                        placeholder="Введите число"
                        required
-                       class="form-input">
+                       pattern="-?\d*\.?\d+"
+                       title="Введите целое или дробное число (например: 5, 3.14, -2.5)"
+                       class="form-input"
+                       oninput="validateNumber(this)">
             </div>
             
             <div class="form-group">
                 <label for="operation">Операция:</label>
-                <select id="operation" name="operation" class="form-select">
+                <select id="operation" name="operation" class="form-select" onchange="toggleSecondNumber()">
                     <option value="+" {% if operation == '+' %}selected{% endif %}>Сложение (+)</option>
                     <option value="-" {% if operation == '-' %}selected{% endif %}>Вычитание (-)</option>
                     <option value="*" {% if operation == '*' %}selected{% endif %}>Умножение (×)</option>
                     <option value="/" {% if operation == '/' %}selected{% endif %}>Деление (÷)</option>
+                    <option value="sqrt" {% if operation == 'sqrt' %}selected{% endif %}>Квадратный корень (√)</option>
+                    <option value="pow" {% if operation == 'pow' %}selected{% endif %}>Возведение в квадрат (x²)</option>
                 </select>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" id="second-number-group">
                 <label for="num2">Второе число:</label>
-                <input type="number" 
+                <input type="text" 
                        id="num2" 
                        name="num2" 
-                       step="any" 
                        value="{{ num2 }}" 
                        placeholder="Введите число"
-                       required
-                       class="form-input">
+                       pattern="-?\d*\.?\d+"
+                       title="Введите целое или дробное число (например: 5, 3.14, -2.5)"
+                       class="form-input"
+                       oninput="validateNumber(this)">
             </div>
         </div>
         
         <div class="form-actions">
-            <button type="submit" class="btn-calculate">
+            <button type="submit" class="btn-calculate" id="submit-btn">
                 <span class="btn-icon">=</span>
                 Вычислить
             </button>
             <button type="button" class="btn-clear" onclick="clearForm()">
                 <span class="btn-icon">×</span>
-                Очистить
+                Очистить форму
             </button>
         </div>
     </form>
@@ -63,21 +68,33 @@
         <div class="result-box success">
             <h3>📊 Результат вычисления:</h3>
             <div class="calculation">
-                <span class="number">{{ num1 }}</span>
-                <span class="operator">
-                    {% if operation == '+' %}
-                        +
-                    {% elif operation == '-' %}
-                        -
-                    {% elif operation == '*' %}
-                        ×
-                    {% elif operation == '/' %}
-                        ÷
-                    {% endif %}
-                </span>
-                <span class="number">{{ num2 }}</span>
-                <span class="equals">=</span>
-                <span class="result-value">{{ result }}</span>
+                {% if operation == 'sqrt' %}
+                    <span class="sqrt-symbol">√</span>
+                    <span class="number">{{ num1 }}</span>
+                    <span class="equals">=</span>
+                    <span class="result-value">{{ result }}</span>
+                {% elif operation == 'pow' %}
+                    <span class="number">{{ num1 }}</span>
+                    <sup class="power">2</sup>
+                    <span class="equals">=</span>
+                    <span class="result-value">{{ result }}</span>
+                {% else %}
+                    <span class="number">{{ num1 }}</span>
+                    <span class="operator">
+                        {% if operation == '+' %}
+                            +
+                        {% elif operation == '-' %}
+                            -
+                        {% elif operation == '*' %}
+                            ×
+                        {% elif operation == '/' %}
+                            ÷
+                        {% endif %}
+                    </span>
+                    <span class="number">{{ num2 }}</span>
+                    <span class="equals">=</span>
+                    <span class="result-value">{{ result }}</span>
+                {% endif %}
             </div>
             <p class="result-timestamp">Вычислено: {{ timestamp|default:"только что" }}</p>
         </div>
@@ -92,8 +109,6 @@
         </div>
     </div>
     {% endif %}
-    
-
 </div>
 
 <style>
@@ -266,21 +281,140 @@
 </style>
 
 <script>
+    function validateNumber(input) {
+        const value = input.value.trim();
+        const pattern = /^-?\d*\.?\d+$/;
+        
+        if (value === '') {
+            input.classList.remove('valid', 'invalid');
+            updateSubmitButton();
+            return true;
+        }
+        
+        if (pattern.test(value)) {
+            input.classList.remove('invalid');
+            input.classList.add('valid');
+            updateSubmitButton();
+            return true;
+        } else {
+            input.classList.remove('valid');
+            input.classList.add('invalid');
+            updateSubmitButton();
+            return false;
+        }
+    }
+    
+    function toggleSecondNumber() {
+        const operation = document.getElementById('operation').value;
+        const secondNumberGroup = document.getElementById('second-number-group');
+        
+        if (operation === 'sqrt' || operation === 'pow') {
+            secondNumberGroup.classList.add('hidden');
+        } else {
+            secondNumberGroup.classList.remove('hidden');
+        }
+        updateSubmitButton();
+    }
+    
     function clearForm() {
         document.getElementById('num1').value = '';
         document.getElementById('num2').value = '';
         document.getElementById('operation').value = '+';
         
+        document.getElementById('num1').classList.remove('valid', 'invalid');
+        document.getElementById('num2').classList.remove('valid', 'invalid');
+        
+        const secondNumberGroup = document.getElementById('second-number-group');
+        secondNumberGroup.classList.remove('hidden');
+        
         document.querySelector('.calculator-form').scrollIntoView({
             behavior: 'smooth'
         });
+        
+        updateSubmitButton();
+    }
+    
+    function updateSubmitButton() {
+        const submitBtn = document.getElementById('submit-btn');
+        const operation = document.getElementById('operation').value;
+        const num1 = document.getElementById('num1').value.trim();
+        const num2 = document.getElementById('num2').value.trim();
+        
+        let isValid = true;
+        
+        if (num1 === '') {
+            isValid = false;
+        } else {
+            const pattern = /^-?\d*\.?\d+$/;
+            if (!pattern.test(num1)) {
+                isValid = false;
+            }
+        }
+        
+        if (operation !== 'sqrt' && operation !== 'pow') {
+            if (num2 === '') {
+                isValid = false;
+            } else {
+                const pattern = /^-?\d*\.?\d+$/;
+                if (!pattern.test(num2)) {
+                    isValid = false;
+                }
+            }
+        }
+        
+        if (operation === '/' && num2 === '0') {
+            isValid = false;
+        }
+        
+        submitBtn.disabled = !isValid;
     }
     
     document.addEventListener('DOMContentLoaded', function() {
+        toggleSecondNumber();
+        
+        const inputs = document.querySelectorAll('.form-input');
+        inputs.forEach(input => {
+            input.addEventListener('input', function() {
+                validateNumber(this);
+            });
+            
+            if (input.value) {
+                validateNumber(input);
+            }
+        });
+        
         const num1Input = document.getElementById('num1');
         if (num1Input && !num1Input.value) {
             num1Input.focus();
         }
+        
+        updateSubmitButton();
+        
+        document.getElementById('calc-form').addEventListener('submit', function(e) {
+            const operation = document.getElementById('operation').value;
+            const num1 = document.getElementById('num1').value.trim();
+            const num2 = document.getElementById('num2').value.trim();
+            
+            if (!validateNumber(document.getElementById('num1'))) {
+                e.preventDefault();
+                alert('Пожалуйста, введите корректное первое число');
+                return;
+            }
+            
+            if (operation !== 'sqrt' && operation !== 'pow') {
+                if (!validateNumber(document.getElementById('num2'))) {
+                    e.preventDefault();
+                    alert('Пожалуйста, введите корректное второе число');
+                    return;
+                }
+                
+                if (operation === '/' && parseFloat(num2) === 0) {
+                    e.preventDefault();
+                    alert('Деление на ноль невозможно');
+                    return;
+                }
+            }
+        });
     });
 </script>
 {% endblock %}

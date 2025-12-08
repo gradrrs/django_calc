@@ -1,108 +1,120 @@
-# calculator/views.py
-from django.shortcuts import render
-from datetime import datetime
-
-operations_history = []
+from django.shortcuts import render, redirect
+from django.utils import timezone
+import math
+from django.contrib import messages
 
 def calculator_view(request):
-    context = {
-        'result': None,
-        'error': None,
-        'num1': '',
-        'num2': '',
-        'operation': '+'
-    }
-    
-    return render(request, 'calculator/calculator.html', context)
-
+    return render(request, 'calculator/calculator.html')
 
 def calculate(request):
     if request.method == 'POST':
         try:
-            num1 = request.POST.get('num1', '')
-            num2 = request.POST.get('num2', '')
+            num1 = request.POST.get('num1', '').strip()
             operation = request.POST.get('operation', '+')
             
-            if not num1 or not num2:
-                raise ValueError("Оба поля должны быть заполнены")
-            
-            num1_float = float(num1)
-            num2_float = float(num2)
-            
-            if operation == '+':
-                result = num1_float + num2_float
-            elif operation == '-':
-                result = num1_float - num2_float
-            elif operation == '*':
-                result = num1_float * num2_float
-            elif operation == '/':
-                if num2_float == 0:
-                    raise ZeroDivisionError("Деление на ноль невозможно")
-                result = num1_float / num2_float
+            if '.' in num1:
+                num1_val = float(num1)
             else:
-                raise ValueError("Неизвестная операция")
+                num1_val = int(num1)
             
+            result = None
+            num2_val = None
+            
+            if operation in ['sqrt', 'pow']:
+                if operation == 'sqrt':
+                    if num1_val < 0:
+                        raise ValueError("Квадратный корень из отрицательного числа невозможен")
+                    result = math.sqrt(num1_val)
+                    calculation_display = f"√{num1} = {result:.6f}"
+                elif operation == 'pow':
+                    result = num1_val ** 2
+                    calculation_display = f"{num1}² = {result:.6f}"
+            else:
+                num2 = request.POST.get('num2', '').strip()
+                if not num2:
+                    raise ValueError("Введите второе число")
+                    
+                if '.' in num2:
+                    num2_val = float(num2)
+                else:
+                    num2_val = int(num2)
+                
+                if operation == '+':
+                    result = num1_val + num2_val
+                elif operation == '-':
+                    result = num1_val - num2_val
+                elif operation == '*':
+                    result = num1_val * num2_val
+                elif operation == '/':
+                    if num2_val == 0:
+                        raise ZeroDivisionError("Деление на ноль невозможно")
+                    result = num1_val / num2_val
+                
+                calculation_display = f"{num1} {operation} {num2} = {result:.6f}"
+            
+            if result is not None:
+                if isinstance(result, float) and result.is_integer():
+                    result = int(result)
+                elif isinstance(result, float):
+                    result = round(result, 6)
+            
+            history = request.session.get('calculation_history', [])
             history_entry = {
-                'num1': num1_float,
-                'num2': num2_float,
+                'num1': num1,
                 'operation': operation,
-                'result': result,
-                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                'num2': str(num2_val) if num2_val is not None else '',
+                'result': str(result),
+                'timestamp': timezone.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'display': calculation_display
             }
-            operations_history.append(history_entry)
-            
-            if len(operations_history) > 10:
-                operations_history.pop(0)
+            history.insert(0, history_entry)  
+            request.session['calculation_history'] = history[:50]
+            request.session.modified = True
             
             context = {
-                'result': result,
                 'num1': num1,
-                'num2': num2,
                 'operation': operation,
-                'error': None
+                'num2': str(num2_val) if num2_val is not None else '',
+                'result': result,
+                'timestamp': timezone.now().strftime("%Y-%m-%d %H:%M:%S"),
             }
+            
+            return render(request, 'calculator/calculator.html', context)
             
         except ValueError as e:
-            context = {
-                'result': None,
-                'num1': num1,
-                'num2': num2,
-                'operation': operation,
-                'error': str(e)
-            }
+            error_message = str(e)
+            if "could not convert string to float" in error_message.lower():
+                error_message = "Пожалуйста, введите корректные числа"
         except ZeroDivisionError as e:
-            context = {
-                'result': None,
-                'num1': num1,
-                'num2': num2,
-                'operation': operation,
-                'error': str(e)
-            }
+            error_message = str(e)
         except Exception as e:
-            context = {
-                'result': None,
-                'num1': num1,
-                'num2': num2,
-                'operation': operation,
-                'error': f"Ошибка: {str(e)}"
-            }
-    else:
-        context = {
-            'result': None,
-            'num1': '',
-            'num2': '',
-            'operation': '+',
-            'error': None
-        }
+            error_message = f"Произошла ошибка: {str(e)}"
+        
+        return render(request, 'calculator/calculator.html', {
+            'error': error_message,
+            'num1': request.POST.get('num1', ''),
+            'operation': request.POST.get('operation', '+'),
+            'num2': request.POST.get('num2', ''),
+        })
     
-    return render(request, 'calculator/calculator.html', context)
-
+    return redirect('calculator')
 
 def history_view(request):
-    recent_history = list(reversed(operations_history[-10:]))
+    history = request.session.get('calculation_history', [])
     
-    context = {
-        'history': recent_history
-    }
+    if request.method == 'POST' and 'clear_history' in request.POST:
+        request.session['calculation_history'] = []
+        request.session.modified = True
+        messages.success(request, "История операций очищена")
+        return redirect('history')
     
-    return render(request, 'calculator/history.html', context)
+    return render(request, 'calculator/history.html', {
+        'history': history
+    })
+
+def clear_history(request):
+    if request.method == 'POST':
+        request.session['calculation_history'] = []
+        request.session.modified = True
+        messages.success(request, "История операций очищена")
+    return redirect('history')
